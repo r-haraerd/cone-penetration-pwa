@@ -1,4 +1,5 @@
 import { recalculatePoint } from '../domain/depth';
+import type { MergeResult } from '../domain/merge';
 import { newId, nowIso } from '../domain/ids';
 import {
   MAX_MEASUREMENTS_PER_POINT,
@@ -344,6 +345,36 @@ export class Repository {
       await this.db.projects.put(snapshot.project);
       await this.db.points.bulkPut(snapshot.points.map((p) => p.point));
       await this.db.measurements.bulkPut(snapshot.points.flatMap((p) => p.measurements));
+    });
+  }
+
+  /** 業務番号が同じ（別 ID の）案件。結合の候補を探すために使う */
+  async findProjectsByNumber(projectNumber: string, excludeId: string): Promise<Project[]> {
+    const key = projectNumber.trim().toLowerCase();
+    return (await this.db.projects.toArray()).filter((p) => p.id !== excludeId && p.projectNumber.trim().toLowerCase() === key);
+  }
+
+  /**
+   * 結合の判定・選択結果を 1 トランザクションで書き込む。
+   * 対象の地点は、端末の記録をいったん消してから結合後の記録を書き込む（途中で失敗したら何も変わらない）。
+   */
+  async applyMerge(result: MergeResult): Promise<void> {
+    await this.db.transaction('rw', this.db.projects, this.db.points, this.db.measurements, async () => {
+      const projectIds = new Set(result.points.map((p) => p.point.projectId));
+      if (projectIds.size > 1) throw new DomainError('結合データが不正です');
+      const [projectId] = [...projectIds];
+      if (!projectId) return;
+      await this.getProject(projectId);
+      for (const { point, measurements } of result.points) {
+        const existing = await this.db.points.get(point.id);
+        if (existing && existing.projectId !== projectId) throw new DomainError('別の案件と地点 ID が重複しているため結合できません');
+        const clash = await this.db.points.where('[projectId+pointNumber]').equals([projectId, point.pointNumber]).first();
+        if (clash && clash.id !== point.id) throw new DomainError(`${pointNameOf(point.pointNumber)} が重複するため結合できません`);
+        await this.db.measurements.where('pointId').equals(point.id).delete();
+        await this.db.points.put(point);
+        await this.db.measurements.bulkPut(measurements);
+      }
+      await this.touchProject(projectId, nowIso());
     });
   }
 

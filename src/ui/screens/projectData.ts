@@ -97,7 +97,8 @@ export async function projectDataScreen({ projectId }: Params): Promise<HTMLElem
 
   const backupSection = h('section', { class: 'card' },
     h('h2', { class: 'card-heading' }, 'バックアップ（JSON）'),
-    h('p', { class: 'hint' }, '案件の全データを 1 ファイルに保存します。端末の故障・紛失・機種変更のときは、案件一覧の「バックアップから復元」で元に戻せます。'),
+    h('p', { class: 'hint' }, '案件の全データを 1 ファイルに保存します。端末の故障・紛失・機種変更のときは、案件一覧の「バックアップの取り込み」で元に戻せます。'),
+    h('p', { class: 'hint' }, '複数人で分担するとき：出発前にこのファイルをメンバーに配り、帰社後はメンバーのファイルを代表者が「取り込み」→「結合」します。'),
     statusLine,
     h('button', { type: 'button', class: 'btn btn-primary', onclick: () => void exportBackup() }, 'JSON バックアップを保存'),
     backupError,

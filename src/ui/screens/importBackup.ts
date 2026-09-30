@@ -1,10 +1,12 @@
 import { repository } from '../../db/repository';
 import type { ProjectSnapshot } from '../../domain/types';
+import type { MatchBy } from '../../domain/merge';
 import { parseBackup } from '../../export/backup';
 import { navigate } from '../../router';
 import { formatDateTime, h } from '../dom';
 import { confirmDialog } from '../components/confirmDialog';
 import { errorText, screen, showError } from '../components/layout';
+import { mergeReview } from './mergeReview';
 
 function countMeasurements(snapshot: ProjectSnapshot): number {
   return snapshot.points.reduce((sum, p) => sum + p.measurements.length, 0);
@@ -36,7 +38,30 @@ export async function importBackupScreen(): Promise<HTMLElement> {
       h('div', { class: 'card-meta' }, `最終更新 ${formatDateTime(project.updatedAt)}`),
       h('div', { class: 'card-meta' }, `バックアップ作成 ${formatDateTime(exportedAt)}`),
     );
+    const startMerge = async (localProjectId: string, matchBy: MatchBy) => {
+      try {
+        result.replaceChildren(summary, await mergeReview(localProjectId, snapshot, matchBy));
+        result.scrollIntoView({ block: 'start' });
+      } catch (e) {
+        showError(error, e);
+      }
+    };
+
     if (!(await repository.projectExists(project.id))) {
+      // 別々に作った同じ業務番号の案件があれば、結合するか確認する
+      const sameNumber = await repository.findProjectsByNumber(project.projectNumber, project.id);
+      if (sameNumber.length > 0) {
+        result.replaceChildren(
+          h('p', { class: 'ok-text' }, 'ファイルの検証に成功しました。'),
+          summary,
+          h('p', { class: 'notice' }, `端末に同じ業務番号「${project.projectNumber}」の案件があります。同じ案件として結合しますか？（地点は K 番号で照合します）`),
+          ...sameNumber.map((p) => h('button', {
+            type: 'button', class: 'btn btn-primary', onclick: () => void startMerge(p.id, 'projectNumber'),
+          }, `「${p.projectNumber} ${p.projectName}」と結合する`)),
+          h('button', { type: 'button', class: 'btn btn-secondary', onclick: () => void restore(snapshot, false) }, '別の案件として復元'),
+        );
+        return;
+      }
       result.replaceChildren(
         h('p', { class: 'ok-text' }, 'ファイルの検証に成功しました。'),
         summary,
@@ -62,8 +87,10 @@ export async function importBackupScreen(): Promise<HTMLElement> {
       h('p', { class: 'notice' },
         `この案件は既に端末にあります（${current.points.length} 地点・${countMeasurements(current)} 測定、最終更新 ${formatDateTime(current.project.updatedAt)}）。`,
         deviceNewer ? ' 端末のデータの方が新しいです。' : ''),
+      h('p', { class: 'hint' }, '分担して記録したデータを集めるときは「結合」を選んでください。地点ごとに、記録がある方・新しい方を取り込みます。'),
+      h('button', { type: 'button', class: 'btn btn-primary btn-large', onclick: () => void startMerge(project.id, 'id') }, '結合して取り込む（おすすめ）'),
       h('button', { type: 'button', class: 'btn btn-danger-outline', onclick: () => void replace() }, '端末の案件を置き換える'),
-      h('a', { class: 'btn btn-secondary', href: `#/projects/${project.id}` }, '置き換えずに端末の案件を開く'),
+      h('a', { class: 'btn btn-secondary', href: `#/projects/${project.id}` }, '取り込まずに端末の案件を開く'),
     );
   };
 
@@ -89,11 +116,11 @@ export async function importBackupScreen(): Promise<HTMLElement> {
   });
 
   return screen({
-    title: 'バックアップから復元',
+    title: 'バックアップの取り込み',
     backHref: '#/',
     backLabel: '案件一覧',
     body: [
-      h('p', { class: 'hint' }, 'このアプリで保存した JSON バックアップファイルを選んでください。'),
+      h('p', { class: 'hint' }, 'このアプリで保存した JSON バックアップファイルを選んでください。端末の復元、配布された案件の受け取り、分担したデータの結合に使います。'),
       h('label', { class: 'btn btn-primary btn-large file-button', for: 'backup-file' }, 'ファイルを選ぶ'),
       fileInput,
       error,

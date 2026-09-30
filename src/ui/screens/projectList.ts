@@ -26,7 +26,7 @@ export async function projectListScreen(): Promise<HTMLElement> {
     ],
     footer: [
       h('a', { class: 'btn btn-primary btn-large', href: '#/projects/new' }, '＋ 新しい案件'),
-      h('a', { class: 'footer-link', href: '#/import' }, 'バックアップから復元'),
+      h('a', { class: 'footer-link', href: '#/import' }, 'バックアップの取り込み（復元・受け取り・結合）'),
     ],
   });
 }

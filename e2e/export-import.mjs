@@ -63,7 +63,7 @@ check('削除確認にバックアップ注意なし', (await page.textContent('
 await shot('32_delete_confirm');
 await page.click('.confirm-dialog >> text=案件を削除');
 await page.waitForSelector('text=案件がありません');
-await page.click('text=バックアップから復元');
+await page.click('text=バックアップの取り込み（復元・受け取り・結合）');
 await page.setInputFiles('#backup-file', backup.path);
 await page.waitForSelector('text=この案件を復元'); await shot('33_import');
 await page.click('text=この案件を復元');
