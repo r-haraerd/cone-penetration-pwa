@@ -15,11 +15,10 @@ afterEach(async () => {
 });
 
 async function sampleProject() {
-  const project = await repo.createProject('0540', '○○地区地質調査');
-  const k1 = await repo.startNextPoint(project.id);
+  const project = await repo.createProject('0540', '○○地区地質調査', 2);
+  const [k1, k2] = await repo.listPointSummaries(project.id);
   for (const [b, p] of [[5, 10], [8, 10], [12, 10], [50, 5]]) await repo.addMeasurement(k1.id, b, p);
   await repo.finishPoint(k1.id);
-  const k2 = await repo.startNextPoint(project.id);
   await repo.addMeasurement(k2.id, 7, 10);
   return project;
 }
@@ -75,8 +74,8 @@ describe('JSON バックアップ', () => {
   it('置き換えで消えた地点・測定が残らない', async () => {
     const project = await sampleProject();
     const text = await exportJson(project.id);
-    await repo.finishPoint((await repo.listPointSummaries(project.id))[1].id);
-    const k3 = await repo.startNextPoint(project.id);
+    await repo.setPointCount(project.id, 3);
+    const k3 = (await repo.listPointSummaries(project.id))[2];
     await repo.addMeasurement(k3.id, 1, 10);
     const parsed = parseBackup(text);
     if (!parsed.ok) throw new Error('parse failed');
@@ -123,7 +122,6 @@ describe('壊れた・不正な JSON を読み込んでも既存データを壊�
     ['ID 形式不正', (b) => (b.points[0].id = 'x'), 'ID 形式'],
     ['地点番号 26', (b) => (b.points[1].pointNumber = 26), 'pointNumber'],
     ['日時不正', (b) => (b.points[0].measurements[0].recordedAt = 'yesterday'), 'recordedAt'],
-    ['測定中が複数', (b) => (b.points[0].status = 'active'), '測定中の地点が複数'],
   ])('%s', async (_label, mutate, fragment) => {
     const errors = await tamper(mutate);
     expect(errors.join('\n')).toContain(fragment);
@@ -134,10 +132,11 @@ describe('壊れた・不正な JSON を読み込んでも既存データを壊�
 describe('案件の削除', () => {
   it('地点・測定も含めて削除され、他の案件は残る', async () => {
     const a = await sampleProject();
-    const b = await repo.createProject('0541', 'b');
+    const b = await repo.createProject('0541', 'b', 1);
     await repo.deleteProject(a.id);
-    expect(await db.points.count()).toBe(0);
+    expect(await db.points.where('projectId').equals(a.id).count()).toBe(0);
     expect(await db.measurements.count()).toBe(0);
+    expect(await db.points.where('projectId').equals(b.id).count()).toBe(1);
     expect((await repo.listProjectSummaries()).map((p) => p.id)).toEqual([b.id]);
   });
 });

@@ -36,8 +36,8 @@ page = await open();
 await page.waitForSelector('text=＋ 新しい案件');
 check('圏外で起動', await page.textContent('.net-badge'), '● オフライン');
 await page.click('.app-footer >> text=＋ 新しい案件');
-await page.fill('#project-number', '0540'); await page.fill('#project-name', '圏外テスト');
-await page.click('text=案件を作成'); await page.click('text=＋ K-1 を開始');
+await page.fill('#project-number', '0540'); await page.fill('#project-name', '圏外テスト'); await page.fill('#point-count', '5');
+await page.click('text=案件を作成'); await page.click('.point-tile[data-point="K-3"]'); await page.click('.app-footer >> text=測定を開始');
 for (const b of [5, 8, 12]) {
   await page.fill('#blow-count', String(b));
   await page.click('.app-footer >> text=保存して次へ');
@@ -70,7 +70,7 @@ if (siteDir) {
   await Promise.all([page.waitForEvent('load'), page.click('.update-btn')]);
   await page.waitForSelector('.card-link');
   check('更新後に新しいビルドで動く', (await scriptSrc()) !== before, true);
-  check('更新後もデータが残る', (await page.textContent('.card-meta')).trim(), '1 地点');
+  check('更新後もデータが残る', (await page.textContent('.card-meta')).trim(), '試験数量 5 地点 ・ 記録あり 1');
 }
 console.log('page errors:', errors);
 await browser.close();

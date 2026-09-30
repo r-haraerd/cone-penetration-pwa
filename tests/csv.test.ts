@@ -52,12 +52,13 @@ afterEach(async () => {
   await db.delete();
 });
 
+/** pointsData[i] が K-(i+1) の [打撃回数, 貫入量] の並び。空配列は未測定 */
 async function buildProject(pointsData: number[][][], projectNumber = '0540') {
-  const project = await repo.createProject(projectNumber, '○○地区地質調査');
-  for (const data of pointsData) {
-    const point = await repo.startNextPoint(project.id);
-    for (const [blow, pen] of data) await repo.addMeasurement(point.id, blow, pen);
-    if (data.length > 0) await repo.finishPoint(point.id);
+  const project = await repo.createProject(projectNumber, '○○地区地質調査', Math.max(1, pointsData.length));
+  const points = await repo.listPointSummaries(project.id);
+  for (const [i, data] of pointsData.entries()) {
+    for (const [blow, pen] of data) await repo.addMeasurement(points[i].id, blow, pen);
+    if (data.length > 0) await repo.finishPoint(points[i].id);
   }
   return project;
 }
@@ -98,22 +99,20 @@ describe('PWA の CSV 出力', () => {
     expect(csvField('a,"b"')).toBe('"a,""b"""');
   });
 
-  it('途中の地点に記録がないと出力前に止め、そのまま出せばマクロも拒否する', async () => {
-    const project = await buildProject([[[5, 10]], [[6, 10]], [[7, 10]]]);
-    const points = await repo.listPointSummaries(project.id);
-    await repo.renumberPoint(points[1].id, 5); // K-2 → K-5（K-2 が欠番になる）
+  it('途中の地点が未測定だと出力前に止め、そのまま出せばマクロも拒否する', async () => {
+    const project = await buildProject([[[5, 10]], [], [[7, 10]]]); // K-2 未測定
     const snapshot = await repo.getProjectSnapshot(project.id);
     const readiness = checkCsvReadiness(snapshot);
     expect(readiness.errors.join()).toContain('K-2');
     expect(vbaValidateCsv(buildExcelCsv(snapshot)).ok).toBe(false);
   });
 
-  it('測定中・測定なしの最後の地点は注記だけで出力できる', async () => {
-    const project = await buildProject([[[5, 10]], []]); // K-2 は開始しただけ
+  it('後ろの未測定地点は注記だけで出力できる', async () => {
+    const project = await buildProject([[[5, 10]], []]); // K-2 未測定
     const snapshot = await repo.getProjectSnapshot(project.id);
     const readiness = checkCsvReadiness(snapshot);
     expect(readiness.errors).toEqual([]);
-    expect(readiness.notes.join()).toContain('K-2 は測定がない');
+    expect(readiness.notes.join()).toContain('K-2 は未測定');
     expect(vbaValidateCsv(buildExcelCsv(snapshot)).ok).toBe(true);
   });
 

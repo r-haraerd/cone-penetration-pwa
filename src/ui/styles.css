@@ -232,3 +232,30 @@ button, input { font: inherit; }
 .install-title { margin: 0 0 4px; font-size: 17px; font-weight: 800; color: var(--primary); }
 .install-hint .btn { margin-top: 10px; }
 .app-version { margin-top: 32px; text-align: center; color: var(--muted); font-size: 13px; }
+
+/* ---------- 試験数量・地点の選択 ---------- */
+.count-row { display: flex; align-items: center; gap: 10px; }
+.count-input { width: 6em; flex: 0 0 auto; text-align: center; font-size: 26px; font-weight: 800; }
+.count-row .unit { font-size: 20px; font-weight: 700; }
+.progress-line { display: flex; justify-content: space-between; flex-wrap: wrap; gap: 4px 12px; font-size: 16px; font-weight: 700; margin: 4px 2px 0; }
+.point-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; margin: 8px 0 4px; }
+.point-tile {
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px;
+  min-height: 92px; padding: 8px 4px; border-radius: var(--radius); text-decoration: none;
+  background: var(--surface); color: var(--text); border: 2px solid var(--border);
+  -webkit-tap-highlight-color: transparent; touch-action: manipulation;
+}
+.point-tile:active { transform: scale(0.97); }
+.tile-name { font-size: 24px; font-weight: 800; line-height: 1.1; }
+.tile-depth { font-size: 15px; font-variant-numeric: tabular-nums; color: var(--muted); }
+.tile-state { font-size: 13px; font-weight: 700; padding: 1px 8px; border-radius: 999px; }
+.point-tile.todo .tile-state { color: var(--muted); border: 1px solid var(--border); }
+.point-tile.doing { border-color: var(--active); border-width: 3px; }
+.point-tile.doing .tile-state { background: var(--active); color: #fff; }
+.point-tile.doing .tile-depth { color: var(--text); font-weight: 700; }
+.point-tile.done { background: #e4e7ec; border-color: #c2c8d0; }
+.point-tile.done .tile-state { background: #5b6470; color: #fff; }
+.status-chip.todo { color: var(--muted); }
+.status-chip.doing { color: var(--active); }
+.status-chip.done { color: var(--muted); }
+@media (min-width: 520px) { .point-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); } }

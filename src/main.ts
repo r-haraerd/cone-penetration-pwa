@@ -11,6 +11,7 @@ import { projectDataScreen } from './ui/screens/projectData';
 import { projectDetailScreen } from './ui/screens/projectDetail';
 import { projectListScreen } from './ui/screens/projectList';
 import { projectNewScreen } from './ui/screens/projectNew';
+import { projectSettingsScreen } from './ui/screens/projectSettings';
 import { captureInstallPrompt, setupServiceWorker } from './ui/pwa';
 import { watchKeyboardInset } from './ui/viewport';
 
@@ -18,6 +19,7 @@ route('/', projectListScreen);
 route('/projects/new', projectNewScreen);
 route('/import', importBackupScreen);
 route('/projects/:projectId/data', projectDataScreen);
+route('/projects/:projectId/settings', projectSettingsScreen);
 route('/projects/:projectId', projectDetailScreen);
 route('/points/:pointId', pointDetailScreen);
 route('/points/:pointId/measure', measureScreen);

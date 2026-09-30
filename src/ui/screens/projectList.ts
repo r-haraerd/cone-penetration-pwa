@@ -11,7 +11,7 @@ export async function projectListScreen(): Promise<HTMLElement> {
     : projects.map((p) =>
         h('a', { class: 'card card-link', href: `#/projects/${p.id}` },
           h('div', { class: 'card-title' }, h('span', { class: 'project-number' }, p.projectNumber), ' ', p.projectName),
-          h('div', { class: 'card-meta' }, `${p.pointCount} 地点`),
+          h('div', { class: 'card-meta' }, `試験数量 ${p.pointCount} 地点 ・ 記録あり ${p.measuredPointCount}`),
           h('div', { class: 'card-meta' }, `最終更新 ${formatDateTime(p.updatedAt)}`),
           h('span', { class: 'card-open' }, '開く ›'),
         ),

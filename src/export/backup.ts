@@ -199,7 +199,6 @@ export function parseBackup(text: string): ParseResult {
     if (seenIds.has(id)) c.fail(`${where} の ID が重複しています`);
     seenIds.add(id);
   };
-  let activeCount = 0;
   const points: ProjectSnapshot['points'] = [];
 
   data.points.forEach((rawPoint: unknown, i: number) => {
@@ -211,7 +210,6 @@ export function parseBackup(text: string): ParseResult {
     seenNumbers.add(pointNumber);
     const status = rawPoint.status;
     if (status !== 'active' && status !== 'finished') c.fail(`${name} の status が不正です`);
-    if (status === 'active') activeCount++;
     const point: Point = {
       id: c.id(rawPoint, 'id', name),
       projectId: project.id,
@@ -257,7 +255,6 @@ export function parseBackup(text: string): ParseResult {
     });
     points.push({ point, measurements });
   });
-  if (activeCount > 1) c.fail('測定中の地点が複数あります');
 
   if (c.errors.length > 0) return { ok: false, errors: c.errors };
   points.sort((a, b) => a.point.pointNumber - b.point.pointNumber);

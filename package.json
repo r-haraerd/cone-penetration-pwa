@@ -1,6 +1,6 @@
 {
   "name": "cone-penetration-pwa",
-  "version": "0.5.0",
+  "version": "0.6.0",
   "description": "簡易動的コーン貫入試験 現場入力PWA",
   "scripts": {
     "dev": "vite",

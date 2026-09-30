@@ -87,15 +87,15 @@ export function checkCsvReadiness(snapshot: ProjectSnapshot): CsvReadiness {
   }
   if (missing.length > 0) {
     errors.push(
-      `${missing.join('、')} の記録がありません。Excel 取込には K-1 から欠番なしの記録が必要です。` +
-      '地点の設定で番号を付け替えてください。',
+      `${missing.join('、')} の記録がありません。Excel 取込には K-1 から最後に記録した地点まで、` +
+      'すべての地点の記録が必要です。未測定の地点を測定するか、地点の設定で番号を入れ替えてください。',
     );
   }
   for (const { point, measurements } of snapshot.points) {
     if (measurements.length === 0 && point.pointNumber > maxWithData) {
-      notes.push(`${pointNameOf(point.pointNumber)} は測定がないため出力されません。`);
-    } else if (point.status === 'active') {
-      notes.push(`${pointNameOf(point.pointNumber)} は測定中です（ここまでの記録を出力します）。`);
+      notes.push(`${pointNameOf(point.pointNumber)} は未測定のため出力されません。`);
+    } else if (measurements.length > 0 && point.status === 'active') {
+      notes.push(`${pointNameOf(point.pointNumber)} は終了していません（ここまでの記録を出力します）。`);
     }
   }
   return { errors, notes, measurementCount };

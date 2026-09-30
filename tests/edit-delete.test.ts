@@ -16,8 +16,8 @@ afterEach(async () => {
 
 /** 依頼書 27 のデータ：5/10, 8/10, 12/10, 50/5 */
 async function setupK1() {
-  const project = await repo.createProject('0540', '○○地区地質調査');
-  const point = await repo.startNextPoint(project.id);
+  const project = await repo.createProject('0540', '○○地区地質調査', 1);
+  const [point] = await repo.listPointSummaries(project.id);
   const ids: string[] = [];
   for (const [blow, pen] of [[5, 10], [8, 10], [12, 10], [50, 5]]) {
     ids.push((await repo.addMeasurement(point.id, blow, pen)).id);
@@ -98,44 +98,37 @@ describe('測定の削除', () => {
   });
 });
 
-describe('地点番号の変更と地点削除', () => {
+describe('地点番号の入れ替えと記録の全削除', () => {
   async function threePoints() {
-    const project = await repo.createProject('0540', 'x');
-    const pts = [];
-    for (let i = 0; i < 3; i++) {
-      const p = await repo.startNextPoint(project.id);
-      await repo.addMeasurement(p.id, 1, 10);
-      await repo.finishPoint(p.id);
-      pts.push(p);
-    }
+    const project = await repo.createProject('0540', 'x', 3);
+    const pts = await repo.listPointSummaries(project.id);
+    for (const [i, p] of pts.entries()) await repo.addMeasurement(p.id, i + 1, 10);
     return { project, pts };
   }
+  const blowsByNumber = async (projectId: string) =>
+    Promise.all((await repo.listPointSummaries(projectId)).map(async (p) => [p.pointNumber, (await repo.listMeasurements(p.id))[0]?.blowCount ?? null]));
 
-  it('使われていない番号にだけ変更できる', async () => {
-    const { pts } = await threePoints();
-    await expect(repo.renumberPoint(pts[2].id, 2)).rejects.toThrow('K-2 は既に使われています');
-    await expect(repo.renumberPoint(pts[2].id, 26)).rejects.toThrow();
-    await repo.renumberPoint(pts[2].id, 5);
-    expect((await repo.getPointView(pts[2].id)).point.pointNumber).toBe(5);
+  it('使用中の番号を指定すると記録ごと入れ替わる', async () => {
+    const { project, pts } = await threePoints();
+    const r = await repo.movePoint(pts[2].id, 1); // K-3 ⇔ K-1
+    expect(r.swappedWith).toBe(3);
+    expect(await blowsByNumber(project.id)).toEqual([[1, 3], [2, 2], [3, 1]]);
   });
 
-  it('途中の地点は削除できず、最後の番号の地点は測定ごと削除できる', async () => {
+  it('試験数量を超える番号や同じ番号は変更しない', async () => {
     const { project, pts } = await threePoints();
-    expect((await repo.canDeletePoint(pts[1].id)).ok).toBe(false);
-    await expect(repo.deletePoint(pts[1].id)).rejects.toThrow('途中の番号');
-    await repo.deletePoint(pts[2].id);
-    expect(await db.measurements.where('pointId').equals(pts[2].id).count()).toBe(0);
-    expect((await repo.listPointSummaries(project.id)).map((p) => p.pointNumber)).toEqual([1, 2]);
-    // 削除後の次の地点は K-3
-    expect((await repo.startNextPoint(project.id)).pointNumber).toBe(3);
+    await expect(repo.movePoint(pts[0].id, 4)).rejects.toThrow('1～3');
+    expect((await repo.movePoint(pts[0].id, 1)).swappedWith).toBeNull();
+    expect(await blowsByNumber(project.id)).toEqual([[1, 1], [2, 2], [3, 3]]);
   });
 
-  it('測定 0 件の地点は途中の番号でも削除できる', async () => {
+  it('記録の全削除で未測定に戻り、地点は残る', async () => {
     const { project, pts } = await threePoints();
-    await repo.renumberPoint(pts[2].id, 4); // K-3 を空けておく
-    const empty = await repo.startNextPoint(project.id); // K-5
-    await repo.renumberPoint(empty.id, 3);
-    expect((await repo.canDeletePoint(empty.id)).ok).toBe(true);
-    await repo.deletePoint(empty.id);
+    await repo.finishPoint(pts[1].id);
+    await repo.clearPoint(pts[1].id);
+    const k2 = await repo.getPointView(pts[1].id);
+    expect([k2.measurementCount, k2.point.status]).toEqual([0, 'active']);
+    expect((await repo.listPointSummaries(project.id)).length).toBe(3);
+    expect((await repo.addMeasurement(pts[1].id, 9, 10)).sequence).toBe(1);
   });
 });

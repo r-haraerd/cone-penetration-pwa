@@ -7,6 +7,7 @@ export const MAX_MEASUREMENTS_PER_POINT = 100;
 export const DEFAULT_PENETRATION_CM = 10;
 export const RECENT_MEASUREMENT_COUNT = 5;
 
+/** active = 未終了（記録なしなら画面上は「未測定」）、finished = 終了 */
 export type PointStatus = 'active' | 'finished';
 
 /** ISO 8601 形式（UTC）の日時文字列 */

@@ -17,7 +17,10 @@ import { db as defaultDb, type FieldDatabase } from './database';
 export class DomainError extends Error {}
 
 export interface ProjectSummary extends Project {
+  /** 試験数量（K-1〜K-n の n） */
   pointCount: number;
+  /** 記録が 1 件以上ある地点の数 */
+  measuredPointCount: number;
 }
 
 export interface PointSummary extends Point {
@@ -54,26 +57,69 @@ export class Repository {
   // ---------- 案件 ----------
 
   async listProjectSummaries(): Promise<ProjectSummary[]> {
-    return this.db.transaction('r', this.db.projects, this.db.points, async () => {
+    return this.db.transaction('r', this.db.projects, this.db.points, this.db.measurements, async () => {
       const projects = await this.db.projects.orderBy('updatedAt').reverse().toArray();
       return Promise.all(
-        projects.map(async (p) => ({
-          ...p,
-          pointCount: await this.db.points.where('projectId').equals(p.id).count(),
-        })),
+        projects.map(async (p) => {
+          const points = await this.db.points.where('projectId').equals(p.id).toArray();
+          const measuredPointIds = new Set(
+            (await this.db.measurements.where('projectId').equals(p.id).toArray()).map((m) => m.pointId),
+          );
+          return { ...p, pointCount: points.length, measuredPointCount: points.filter((pt) => measuredPointIds.has(pt.id)).length };
+        }),
       );
     });
   }
 
-  async createProject(projectNumber: string, projectName: string): Promise<Project> {
+  /**
+   * 案件を作成し、試験数量ぶんの地点 K-1〜K-n を用意する。
+   * 地点は作成時点ですべて「未終了」で、どの地点からでも記録を始められる。
+   */
+  async createProject(projectNumber: string, projectName: string, pointCount: number): Promise<Project> {
     const number = projectNumber.trim();
     const name = projectName.trim();
     if (!number) throw new DomainError('業務番号を入力してください');
     if (!name) throw new DomainError('案件名を入力してください');
+    assertPointCount(pointCount);
     const now = nowIso();
     const project: Project = { id: newId(), projectNumber: number, projectName: name, createdAt: now, updatedAt: now };
-    await this.db.projects.add(project);
+    await this.db.transaction('rw', this.db.projects, this.db.points, async () => {
+      await this.db.projects.add(project);
+      await this.db.points.bulkAdd(Array.from({ length: pointCount }, (_, i) => newPoint(project.id, i + 1, now)));
+    });
     return project;
+  }
+
+  /**
+   * 試験数量を変更する。増やすと末尾に地点を追加し、減らすと末尾の地点を削除する。
+   * 削除される地点に記録が 1 件でもあれば減らせない（データを失わないため）。
+   */
+  async setPointCount(projectId: string, pointCount: number): Promise<void> {
+    assertPointCount(pointCount);
+    await this.db.transaction('rw', this.db.projects, this.db.points, this.db.measurements, async () => {
+      await this.getProject(projectId);
+      const points = await this.db.points.where('projectId').equals(projectId).sortBy('pointNumber');
+      const now = nowIso();
+      if (pointCount > points.length) {
+        const used = new Set(points.map((p) => p.pointNumber));
+        const added: Point[] = [];
+        for (let n = 1; added.length < pointCount - points.length; n++) {
+          if (!used.has(n)) added.push(newPoint(projectId, n, now));
+        }
+        await this.db.points.bulkAdd(added);
+      } else if (pointCount < points.length) {
+        const removing = points.slice(pointCount);
+        for (const p of removing) {
+          if ((await this.db.measurements.where('pointId').equals(p.id).count()) > 0) {
+            throw new DomainError(`${pointNameOf(p.pointNumber)} に記録があるため、試験数量を ${pointCount} に減らせません`);
+          }
+        }
+        await this.db.points.bulkDelete(removing.map((p) => p.id));
+      } else {
+        return;
+      }
+      await this.touchProject(projectId, now);
+    });
   }
 
   async getProject(projectId: string): Promise<Project> {
@@ -91,37 +137,6 @@ export class Repository {
     });
   }
 
-  /**
-   * 次の地点（最大番号 + 1）を開始する。
-   * 測定中の地点が残っている間、または 25 地点に達した後は開始できない（既存 AppSheet 設計を踏襲）。
-   */
-  async startNextPoint(projectId: string): Promise<Point> {
-    return this.db.transaction('rw', this.db.projects, this.db.points, async () => {
-      await this.getProject(projectId);
-      const points = await this.db.points.where('projectId').equals(projectId).toArray();
-      const active = points.find((p) => p.status === 'active');
-      if (active) {
-        throw new DomainError(`${pointNameOf(active.pointNumber)} が測定中です。終了してから次の地点を開始してください`);
-      }
-      if (points.length >= MAX_POINTS) throw new DomainError(`地点は最大 ${MAX_POINTS} 地点までです`);
-      const pointNumber = points.reduce((max, p) => Math.max(max, p.pointNumber), 0) + 1;
-      if (pointNumber > MAX_POINTS) throw new DomainError(`K-${MAX_POINTS} より後の地点は作成できません`);
-      const now = nowIso();
-      const point: Point = {
-        id: newId(),
-        projectId,
-        pointNumber,
-        status: 'active',
-        createdAt: now,
-        finishedAt: null,
-        updatedAt: now,
-      };
-      await this.db.points.add(point);
-      await this.touchProject(projectId, now);
-      return point;
-    });
-  }
-
   async finishPoint(pointId: string): Promise<void> {
     await this.db.transaction('rw', this.db.projects, this.db.points, this.db.measurements, async () => {
       const point = await this.getPoint(pointId);
@@ -130,6 +145,17 @@ export class Repository {
       if (count === 0) throw new DomainError('測定が 1 件もない地点は終了できません');
       const now = nowIso();
       await this.db.points.update(pointId, { status: 'finished', finishedAt: now, updatedAt: now });
+      await this.touchProject(point.projectId, now);
+    });
+  }
+
+  /** 終了した地点を再び記録できる状態に戻す */
+  async reopenPoint(pointId: string): Promise<void> {
+    await this.db.transaction('rw', this.db.projects, this.db.points, async () => {
+      const point = await this.getPoint(pointId);
+      if (point.status === 'active') return;
+      const now = nowIso();
+      await this.db.points.update(pointId, { status: 'active', finishedAt: null, updatedAt: now });
       await this.touchProject(point.projectId, now);
     });
   }
@@ -240,49 +266,42 @@ export class Repository {
     });
   }
 
-  // ---------- 地点の番号変更・削除 ----------
-
-  /** 地点番号の付け替え（例：K-8 → K-7）。同じ案件で使用中の番号には変更できない */
-  async renumberPoint(pointId: string, newNumber: number): Promise<void> {
-    if (!Number.isInteger(newNumber) || newNumber < 1 || newNumber > MAX_POINTS) {
-      throw new DomainError(`地点番号は 1～${MAX_POINTS} の整数です`);
-    }
-    await this.db.transaction('rw', this.db.projects, this.db.points, async () => {
-      const point = await this.getPoint(pointId);
-      if (point.pointNumber === newNumber) return;
-      const clash = await this.db.points.where('[projectId+pointNumber]').equals([point.projectId, newNumber]).first();
-      if (clash) throw new DomainError(`${pointNameOf(newNumber)} は既に使われています`);
-      const now = nowIso();
-      await this.db.points.update(pointId, { pointNumber: newNumber, updatedAt: now });
-      await this.touchProject(point.projectId, now);
-    });
-  }
+  // ---------- 地点の番号入れ替え・記録の全削除 ----------
 
   /**
-   * 地点を削除できるか。途中の番号を消すと欠番になり Excel 取込ができなくなるため、
-   * 測定 0 件の地点か、最後の番号の地点だけ削除できる。
+   * 地点の番号を変更する（例：K-4 に記録すべきものを K-3 に記録してしまった場合）。
+   * 変更先の番号を別の地点が使っていれば、2 つの地点の番号を入れ替える（記録ごと入れ替わる）。
    */
-  async canDeletePoint(pointId: string): Promise<{ ok: boolean; reason?: string }> {
-    return this.db.transaction('r', this.db.points, this.db.measurements, async () => {
+  async movePoint(pointId: string, targetNumber: number): Promise<{ swappedWith: number | null }> {
+    return this.db.transaction('rw', this.db.projects, this.db.points, async () => {
       const point = await this.getPoint(pointId);
-      const count = await this.db.measurements.where('pointId').equals(pointId).count();
-      if (count === 0) return { ok: true };
       const points = await this.db.points.where('projectId').equals(point.projectId).toArray();
-      const maxNumber = points.reduce((max, p) => Math.max(max, p.pointNumber), 0);
-      if (point.pointNumber === maxNumber) return { ok: true };
-      return { ok: false, reason: '測定記録がある途中の番号の地点は削除できません（欠番になり Excel に取り込めなくなるため）。' };
+      const maxNumber = Math.max(...points.map((p) => p.pointNumber));
+      if (!Number.isInteger(targetNumber) || targetNumber < 1 || targetNumber > maxNumber) {
+        throw new DomainError(`地点番号は 1～${maxNumber} の整数です`);
+      }
+      if (point.pointNumber === targetNumber) return { swappedWith: null };
+      const other = points.find((p) => p.pointNumber === targetNumber);
+      const now = nowIso();
+      if (other) {
+        // [projectId+pointNumber] は一意なので、いったん 0 に退避してから入れ替える
+        await this.db.points.update(point.id, { pointNumber: 0 });
+        await this.db.points.update(other.id, { pointNumber: point.pointNumber, updatedAt: now });
+      }
+      await this.db.points.update(point.id, { pointNumber: targetNumber, updatedAt: now });
+      await this.touchProject(point.projectId, now);
+      return { swappedWith: other ? point.pointNumber : null };
     });
   }
 
-  async deletePoint(pointId: string): Promise<void> {
+  /** 地点の記録をすべて削除し、未測定の状態に戻す（地点そのものは残る） */
+  async clearPoint(pointId: string): Promise<void> {
     await this.db.transaction('rw', this.db.projects, this.db.points, this.db.measurements, async () => {
-      const point = await this.db.points.get(pointId);
-      if (!point) return;
-      const check = await this.canDeletePoint(pointId);
-      if (!check.ok) throw new DomainError(check.reason!);
+      const point = await this.getPoint(pointId);
+      const now = nowIso();
       await this.db.measurements.where('pointId').equals(pointId).delete();
-      await this.db.points.delete(pointId);
-      await this.touchProject(point.projectId, nowIso());
+      await this.db.points.update(pointId, { status: 'active', finishedAt: null, updatedAt: now });
+      await this.touchProject(point.projectId, now);
     });
   }
 
@@ -368,6 +387,16 @@ export class Repository {
   private async touchProject(projectId: string, now: string): Promise<void> {
     await this.db.projects.update(projectId, { updatedAt: now });
   }
+}
+
+function assertPointCount(pointCount: number): void {
+  if (!Number.isInteger(pointCount) || pointCount < 1 || pointCount > MAX_POINTS) {
+    throw new DomainError(`試験数量は 1～${MAX_POINTS} の整数で入力してください`);
+  }
+}
+
+function newPoint(projectId: string, pointNumber: number, now: string): Point {
+  return { id: newId(), projectId, pointNumber, status: 'active', createdAt: now, finishedAt: null, updatedAt: now };
 }
 
 export const repository = new Repository();

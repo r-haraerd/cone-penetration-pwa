@@ -28,11 +28,11 @@ const measure = async (blow, mode) => {
 
 await page.goto(base);
 await page.click('.app-footer >> text=＋ 新しい案件');
-await page.fill('#project-number', '0540'); await page.fill('#project-name', '○○地区地質調査');
-await page.click('text=案件を作成'); await page.click('text=＋ K-1 を開始');
+await page.fill('#project-number', '0540'); await page.fill('#project-name', '○○地区地質調査'); await page.fill('#point-count', '2');
+await page.click('text=案件を作成'); await page.click('.point-tile[data-point="K-1"]'); await page.click('.app-footer >> text=測定を開始');
 for (const [b, m] of [[5], [8], [12], [50, '5']]) await measure(b, m);
 await page.click('.back-link'); await page.click('text=地点終了'); await page.click('.confirm-dialog >> text=地点を終了');
-await page.click('text=次の地点 K-2 を開始'); await measure(7);
+await page.click('text=地点一覧へ（次の地点を選ぶ）'); await page.click('.point-tile[data-point="K-2"]'); await page.click('.app-footer >> text=測定を開始'); await measure(7);
 await page.click('.back-link'); await page.click('.back-link');
 await page.waitForSelector('.data-link');
 check('案件画面のバックアップ状態', (await page.textContent('.data-link .backup-status')).trim(), 'バックアップ：まだ保存していません');
@@ -67,19 +67,19 @@ await page.click('text=バックアップから復元');
 await page.setInputFiles('#backup-file', backup.path);
 await page.waitForSelector('text=この案件を復元'); await shot('33_import');
 await page.click('text=この案件を復元');
-await page.waitForSelector('.point-card');
-check('復元後の地点', await page.$$eval('.point-card .card-meta', (s) => s.map((x) => x.textContent)), ['0.35 m ・ 4 測定', '0.10 m ・ 1 測定']);
+await page.waitForSelector('.point-tile');
+check('復元後の地点', await page.$$eval('.point-tile', (s) => s.map((x) => x.textContent)), ['K-10.35 m終了', 'K-20.10 m測定中']);
 
 // 復元後に測定を追加 → 同じバックアップを再度読むと「既にある」→ 置き換え
-await page.click('text=K-2 の測定を続ける'); await page.click('text=測定を続ける'); await measure(9);
+await page.click('.point-tile[data-point="K-2"]'); await page.click('.app-footer >> text=測定を続ける'); await measure(9);
 await page.goto(base + '#/import');
 await page.setInputFiles('#backup-file', backup.path);
 await page.waitForSelector('text=端末の案件を置き換える');
 check('既存案件の警告', (await page.textContent('.import-result .notice')).includes('端末のデータの方が新しいです'), true);
 await shot('34_import_exists');
 await page.click('text=端末の案件を置き換える'); await page.click('.confirm-dialog >> text=置き換える');
-await page.waitForSelector('.point-card');
-check('置き換え後（K-2 は 1 測定に戻る）', await page.$$eval('.point-card .card-meta', (s) => s.map((x) => x.textContent)), ['0.35 m ・ 4 測定', '0.10 m ・ 1 測定']);
+await page.waitForSelector('.point-tile');
+check('置き換え後（K-2 は 0.10 m に戻る）', await page.$$eval('.point-tile', (s) => s.map((x) => x.textContent)), ['K-10.35 m終了', 'K-20.10 m測定中']);
 
 // 壊れたファイル
 writeFileSync('shots/downloads/broken.json', backup.text.slice(0, 200));
@@ -94,6 +94,6 @@ await page.waitForFunction(() => document.querySelector('.error-list')?.textCont
 await shot('35_import_error');
 await page.goto(base);
 await page.waitForSelector('.card-link');
-check('壊れたファイル後も案件は無事', (await page.textContent('.card-meta')).trim(), '2 地点');
+check('壊れたファイル後も案件は無事', (await page.textContent('.card-meta')).trim(), '試験数量 2 地点 ・ 記録あり 2');
 console.log('page errors:', errors);
 await browser.close();
