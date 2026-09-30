@@ -1,0 +1,11 @@
+import { chromium, devices } from 'playwright';
+const b = await chromium.launch({ executablePath: process.env.CHROMIUM_PATH || undefined });
+const ctx = await b.newContext({ ...devices['iPhone 13'] }); const p = await ctx.newPage();
+await p.goto(process.env.BASE_URL || 'http://localhost:4173/');
+await p.click('.app-footer >> text=＋ 新しい案件'); await p.fill('#project-number','0540'); await p.fill('#project-name','テスト');
+await p.click('text=案件を作成'); await p.click('text=＋ K-1 を開始'); await p.waitForSelector('#blow-count');
+await p.fill('#blow-count','18'); await p.click('.app-footer >> text=保存して次へ'); await p.fill('#blow-count','15');
+await p.screenshot({ path: 'shots/12_measure_full.png' });
+await p.setViewportSize({ width: 375, height: 400 }); await p.focus('#blow-count');
+await p.screenshot({ path: 'shots/13_measure_kb.png' });
+await b.close();

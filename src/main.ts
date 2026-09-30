@@ -1,0 +1,32 @@
+import './ui/styles.css';
+import { requestPersistentStorage } from './db/database';
+import { route, startRouter } from './router';
+import { measureScreen } from './ui/screens/measure';
+import { measurementEditScreen } from './ui/screens/measurementEdit';
+import { pointDetailScreen } from './ui/screens/pointDetail';
+import { pointRecordsScreen } from './ui/screens/pointRecords';
+import { pointSettingsScreen } from './ui/screens/pointSettings';
+import { importBackupScreen } from './ui/screens/importBackup';
+import { projectDataScreen } from './ui/screens/projectData';
+import { projectDetailScreen } from './ui/screens/projectDetail';
+import { projectListScreen } from './ui/screens/projectList';
+import { projectNewScreen } from './ui/screens/projectNew';
+import { captureInstallPrompt, setupServiceWorker } from './ui/pwa';
+import { watchKeyboardInset } from './ui/viewport';
+
+route('/', projectListScreen);
+route('/projects/new', projectNewScreen);
+route('/import', importBackupScreen);
+route('/projects/:projectId/data', projectDataScreen);
+route('/projects/:projectId', projectDetailScreen);
+route('/points/:pointId', pointDetailScreen);
+route('/points/:pointId/measure', measureScreen);
+route('/points/:pointId/records', pointRecordsScreen);
+route('/points/:pointId/settings', pointSettingsScreen);
+route('/measurements/:measurementId', measurementEditScreen);
+
+void requestPersistentStorage();
+watchKeyboardInset();
+captureInstallPrompt();
+setupServiceWorker();
+startRouter(document.getElementById('app')!);
