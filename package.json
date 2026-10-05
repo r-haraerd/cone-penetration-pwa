@@ -1,0 +1,27 @@
+{
+  "name": "cone-penetration-pwa",
+  "version": "0.8.0",
+  "description": "簡易動的コーン貫入試験 現場入力PWA",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc --noEmit && vite build",
+    "preview": "vite preview",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit",
+    "e2e": "node e2e/smoke.mjs && node e2e/small-screen.mjs && node e2e/edit-delete.mjs && node e2e/export-import.mjs && node e2e/offline.mjs && node e2e/merge.mjs && node e2e/delivery.mjs"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.63.0",
+    "@types/node": "^22.20.4",
+    "fake-indexeddb": "^6.2.5",
+    "typescript": "~5.9",
+    "vite": "^8.3.1",
+    "vite-plugin-pwa": "^1.3.0",
+    "vitest": "^5.0.2"
+  },
+  "dependencies": {
+    "dexie": "^4.4.6"
+  },
+  "private": true,
+  "type": "module"
+}

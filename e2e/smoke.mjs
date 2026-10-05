@@ -1,0 +1,48 @@
+import { chromium, devices } from 'playwright';
+const browser = await chromium.launch({ executablePath: process.env.CHROMIUM_PATH || undefined });
+const ctx = await browser.newContext({ ...devices['iPhone 13'], locale: 'ja-JP', timezoneId: 'Asia/Tokyo' });
+const page = await ctx.newPage();
+const errors = []; page.on('pageerror', e => errors.push(e.message)); page.on('console', m => m.type()==='error' && errors.push(m.text()));
+const base = process.env.BASE_URL || 'http://localhost:4173/';
+const shot = n => page.screenshot({ path: `shots/${n}.png`, fullPage: false });
+await page.goto(base); await shot('01_list_empty');
+await page.click('.app-footer >> text=＋ 新しい案件');
+await page.fill('#project-number', '0540'); await page.fill('#project-name', '○○地区地質調査'); await page.fill('#point-count', '3');
+await shot('02_new'); await page.click('text=案件を作成');
+await page.waitForSelector('.point-tile'); await shot('03_project');
+await page.click('.point-tile[data-point="K-1"]'); await page.click('.app-footer >> text=測定を開始');
+await page.waitForSelector('#blow-count');
+const typeSave = async (blow, mode, other) => {
+  await page.fill('#blow-count', String(blow));
+  if (mode) await page.click(`[data-mode="${mode}"]`);
+  if (other) await page.fill('#other-cm', String(other));
+  await page.click('.app-footer >> text=保存して次へ');
+  await page.waitForFunction(() => document.querySelector('#blow-count').value === '');
+};
+await typeSave(5); await typeSave(8); await typeSave(12);
+await page.fill('#blow-count', '50'); await page.click('[data-mode="5"]'); await shot('04_measure_before_save_5cm');
+await page.click('.app-footer >> text=保存して次へ'); await page.waitForFunction(() => document.querySelector('#blow-count').value === '');
+const depth = await page.textContent('.depth-value'); const next = await page.textContent('.next-depth');
+const pressed = await page.getAttribute('[data-mode="10"]', 'aria-pressed');
+const focused = await page.evaluate(() => document.activeElement?.id);
+console.log('after 4 saves depth=', depth, next, 'default10=', pressed, 'focus=', focused);
+await shot('05_measure_after');
+// その他 7cm と空欄エラー
+await page.click('.app-footer >> text=保存して次へ'); console.log('empty err:', await page.textContent('.error-text'));
+await typeSave(20, 'other', 7); console.log('after other7:', await page.textContent('.depth-value'));
+// リロードしても残る
+await page.reload(); await page.waitForSelector('.depth-value'); console.log('after reload:', await page.textContent('.depth-value'), await page.textContent('.measure-depth .point-count'));
+await page.click('.back-link'); await page.waitForSelector('.point-hero'); await shot('06_point');
+console.log('recent:', (await page.$$eval('.record-row', rs => rs.map(r => r.textContent))).join(' | '));
+await page.click('text=地点終了'); await shot('07_confirm'); await page.click('.confirm-dialog >> text=地点を終了');
+await page.waitForSelector('text=地点一覧へ（次の地点を選ぶ）'); await shot('08_finished');
+await page.click('text=地点一覧へ（次の地点を選ぶ）'); await page.click('.point-tile[data-point="K-2"]'); await page.click('.app-footer >> text=測定を開始'); await page.waitForSelector('#blow-count');
+console.log('K2 title:', await page.textContent('.app-title'), 'depth', await page.textContent('.depth-value'));
+await ctx.setOffline(true); await page.evaluate(() => dispatchEvent(new Event('offline')));
+await typeSave(3); console.log('offline badge:', await page.textContent('.net-badge'), 'depth', await page.textContent('.depth-value'));
+await shot('09_offline_k2');
+await page.goto(base + '#/'); await page.waitForSelector('.card'); await shot('10_list');
+const ipad = await browser.newContext({ ...devices['iPad (gen 7)'] }); const p2 = await ipad.newPage();
+await p2.goto(base); await p2.screenshot({ path: 'shots/11_ipad.png' });
+console.log('errors:', errors);
+await browser.close();
