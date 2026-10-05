@@ -14,6 +14,8 @@ import { ndOf } from './jgsXml';
  * - 柱状図の枠 x = 46.5〜76.5（幅 30）。Nd 0〜50 を 10 ごとに縦線と目盛（Nd 1 = 0.6、0.25 単位で切り捨て）
  * - 測定点：半径 1 の円＋塗りつぶし。点どうしを線で結ぶ。Nd が 50 を超える点は枠の右端で線を切り、
  *   最終点なら底辺に「→」の印を付ける（円は描かない）
+ * - 深度目盛：0.5 m ごとに枠内へ横線を引き、枠の左に深度（0.5・1.0 …）を書く（最終深度まで）。
+ *   学習用データ「簡易貫入柱状図_深度スケール入り.dwg」にならったもの
  * - 引出線と 15° 傾けた文字（地点名・T.P.m・dep = 最終深度）
  * - 画層：S-TTL（図枠）、S-TTL-GRD（距離・標高目盛）、S-BGD-BNDR（下端線）、S-BGD-BRG（柱状図）
  */
@@ -28,6 +30,7 @@ const COLUMN_PITCH = 200;
 const FRAME_LEFT = 46.5;
 const FRAME_RIGHT = 76.5;
 const ND_STEP_X = 6; // Nd 10 ごと
+const DEPTH_STEP_CM = 50; // 深度目盛 0.5 m ごと
 
 /** Nd → 枠左端からの横位置（0.6 倍を 0.25 単位で切り捨て）。整数演算で誤差を出さない */
 export function ndToX(nd: number): number {
@@ -100,7 +103,7 @@ class DxfWriter {
   }
 
   /**
-   * 文字。halign 0=左 1=中央 2=右、valign 0=基準線 3=上。
+   * 文字。halign 0=左 1=中央 2=右、valign 0=基準線 2=中央 3=上。
    * 揃え位置（x, y）を基準に置く（AutoCAD が文字幅から開始位置を計算する）。
    */
   text(layer: string, x: number, y: number, height: number, value: string,
@@ -182,6 +185,13 @@ function drawColumn(w: DxfWriter, ox: number, { point, measurements }: ColumnDat
     const gx = x0 + ND_STEP_X * k;
     w.text(cl, gx + 0.94419312978357, 126.5, 1.05, String(k * 10), { halign: 1, valign: 3 });
     w.polyline(cl, [[gx, GROUND_Y], [gx, bottom]]);
+  }
+
+  // 深度目盛（0.5 m ごと。最終深度より深い目盛は描かない）
+  for (let cm = DEPTH_STEP_CM; cm <= last.cumulativeDepthCm; cm += DEPTH_STEP_CM) {
+    const gy = GROUND_Y - cm / 5;
+    if (cm < last.cumulativeDepthCm) w.polyline(cl, [[x0, gy], [x1, gy]]);
+    w.text(cl, x0 - 0.5, gy, 1.05, (cm / 100).toFixed(1), { halign: 2, valign: 2 });
   }
 
   // 測定点（地表 0 の点から）

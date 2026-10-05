@@ -27,16 +27,37 @@ describe('簡易貫入柱状図 DXF', () => {
   });
 
   it('学習用データ 19 地点から、学習用 DWG と同じ数の図形・文字ができる', () => {
-    const dxf = buildColumnSheetDxf(learningColumns());
+    const columns = learningColumns();
+    const dxf = buildColumnSheetDxf(columns);
     // 学習用 DWG：円 575・塗りつぶし 575・文字 232（tests 外で ezdxf により座標まで照合済み）
+    // ＋ 深度目盛の文字（各地点 0.5 m ごと、最終深度まで）
     expect(count(dxf, /\r\n0\r\nCIRCLE\r\n/g)).toBe(575);
     expect(count(dxf, /\r\n70\r\n1\r\n40\r\n1\r\n41\r\n1\r\n/g)).toBe(575);
-    expect(count(dxf, /\r\n0\r\nTEXT\r\n/g)).toBe(232);
+    const scaleLabels = columns.reduce((n, c) => n + Math.floor(c.measurements[c.measurements.length - 1].cumulativeDepthCm / 50), 0);
+    expect(count(dxf, /\r\n0\r\nTEXT\r\n/g)).toBe(232 + scaleLabels);
     expect(dxf).toContain('\r\n$DWGCODEPAGE\r\n3\r\nANSI_932\r\n');
     for (const layer of ['S-TTL', 'S-TTL-GRD', 'S-BGD-BNDR', 'S-BGD-BRG']) expect(dxf).toContain(`\r\n2\r\n${layer}\r\n`);
     expect(dxf).toContain('dep = 2.680 m');
     expect(dxf.endsWith('0\r\nEOF\r\n')).toBe(true);
     expect(() => encodeShiftJis(dxf)).not.toThrow();
+  });
+
+  it('深度目盛：0.5 m ごとに枠内の横線と、枠の左に深度を書く', () => {
+    const [c] = learningColumns();
+    const at = (depthCm: number) => ({ point: c.point, measurements: [{ ...c.measurements[0], cumulativeDepthCm: depthCm }] });
+    const label = (y: number, v: string) => `\r\n0\r\nTEXT\r\n8\r\nS-BGD-BRG\r\n10\r\n46\r\n20\r\n${y}\r\n30\r\n0\r\n40\r\n1.05\r\n1\r\n${v}\r\n`;
+    const line = (y: number) => `\r\n0\r\nVERTEX\r\n8\r\nS-BGD-BRG\r\n10\r\n46.5\r\n20\r\n${y}\r\n30\r\n0\r\n0\r\nVERTEX\r\n8\r\nS-BGD-BRG\r\n10\r\n76.5\r\n20\r\n${y}\r\n`;
+    // 1.20 m：0.5・1.0 の目盛（y = 125 - 10、125 - 20）
+    const a = buildColumnSheetDxf([at(120)]);
+    expect(a).toContain(label(115, '0.5'));
+    expect(a).toContain(label(105, '1.0'));
+    expect(a).toContain(line(115));
+    expect(a).toContain(line(105));
+    expect(a).not.toContain('\r\n1\r\n1.5\r\n');
+    // ちょうど 1.00 m：1.0 の文字は書くが、横線は枠の下辺と重なるので引かない
+    const b = buildColumnSheetDxf([at(100)]);
+    expect(b).toContain(label(105, '1.0'));
+    expect(b).not.toContain(line(105));
   });
 
   it('5 m より深い地点があれば下端線を下げる', () => {
