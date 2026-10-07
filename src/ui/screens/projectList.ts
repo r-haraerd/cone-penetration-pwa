@@ -2,6 +2,7 @@ import { repository } from '../../db/repository';
 import { formatDateTime, h } from '../dom';
 import { screen } from '../components/layout';
 import { installHint } from '../pwa';
+import { projectDbAvailable } from '../../api/projectDb';
 
 export async function projectListScreen(): Promise<HTMLElement> {
   const projects = await repository.listProjectSummaries();
@@ -27,6 +28,7 @@ export async function projectListScreen(): Promise<HTMLElement> {
     footer: [
       h('a', { class: 'btn btn-primary btn-large', href: '#/projects/new' }, '＋ 新しい案件'),
       h('a', { class: 'footer-link', href: '#/import' }, 'バックアップの取り込み（復元・受け取り・結合）'),
+      ...(projectDbAvailable() ? [h('a', { class: 'footer-link', href: '#/settings' }, '業務DB連携の設定')] : []),
     ],
   });
 }

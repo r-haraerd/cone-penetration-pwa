@@ -7,6 +7,9 @@ import { createZip } from '../../export/zip';
 import { h } from '../dom';
 import { errorText, showError } from '../components/layout';
 import { fileTimestamp, safeFileName, saveFile } from '../fileSave';
+import { renderProjectDbResult } from '../components/projectDbResult';
+import { fetchProjectRecord, projectDbAvailable } from '../../api/projectDb';
+import { appConfig } from '../../config';
 
 const FIELDS: Array<{ key: keyof DeliveryInfo; label: string; placeholder: string }> = [
   { key: 'surveyTitle', label: '調査件名', placeholder: '例：令和○年度 ○○地区地質調査業務委託' },
@@ -32,7 +35,8 @@ export function deliverySection(snapshot: ProjectSnapshot): HTMLElement {
   const fields = FIELDS.map(({ key, label, placeholder }) => {
     const input = h('input', {
       id: `delivery-${key}`, class: 'text-input', type: 'text', autocomplete: 'off', placeholder,
-      value: project.delivery?.[key] ?? '',
+      // 調査業者名は空なら既定値（自社名）を入れておく
+      value: project.delivery?.[key] || (key === 'contractorName' ? appConfig.defaultContractorName : ''),
     });
     inputs[key] = input;
     return [h('label', { class: 'field-label', for: `delivery-${key}` }, label), input];
@@ -55,6 +59,30 @@ export function deliverySection(snapshot: ProjectSnapshot): HTMLElement {
     message.textContent = empty.length ? `未入力：${empty.join('、')}（空欄のまま出力されます）` : '';
     return info;
   };
+
+  const dbResult = h('div', { class: 'db-result', id: 'delivery-db-result' });
+  const fetchFromDb = async (button: HTMLButtonElement) => {
+    error.textContent = '';
+    message.textContent = '業務DBを確認しています…';
+    button.disabled = true;
+    try {
+      const rec = await fetchProjectRecord(project.projectNumber);
+      inputs.surveyTitle.value = rec.surveyTitle;
+      inputs.clientName.value = rec.clientName;
+      if (!inputs.contractorName.value.trim()) inputs.contractorName.value = appConfig.defaultContractorName;
+      message.textContent = '';
+      renderProjectDbResult(dbResult, rec, inputs.contractorName.value.trim());
+      await saveInfo();
+    } catch (e) {
+      message.textContent = '';
+      showError(error, e);
+    } finally {
+      button.disabled = false;
+    }
+  };
+  const dbButton: HTMLButtonElement | null = projectDbAvailable()
+    ? h('button', { type: 'button', class: 'btn btn-secondary', 'data-action': 'fetch-db', onclick: () => void fetchFromDb(dbButton!) }, `業務DBから取得（業務番号 ${project.projectNumber}）`)
+    : null;
 
   const exportXml = async () => {
     try {
@@ -92,6 +120,8 @@ export function deliverySection(snapshot: ProjectSnapshot): HTMLElement {
   return h('section', { class: 'card delivery-card' },
     h('h2', { class: 'card-heading' }, '電子納品データ（XML・柱状図）'),
     h('p', { class: 'hint' }, '簡易動的コーン貫入試験データシート交換用データ（JGS 1433、地点ごとの XML）と、簡易貫入柱状図（DXF）を作ります。'),
+    dbButton,
+    dbResult,
     ...fields,
     measured.length
       ? h('p', { class: 'hint' }, `対象：${measured.map((p) => `K-${p.point.pointNumber}`).join('、')}` + (unmeasured.length ? `（未測定の ${unmeasured.map((p) => `K-${p.point.pointNumber}`).join('、')} は含みません）` : ''))

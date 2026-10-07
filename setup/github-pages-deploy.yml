@@ -30,6 +30,12 @@ jobs:
       - run: npm ci
       - run: npm test
       - run: npm run build
+        env:
+          # 業務DB連携の URL と調査業者名の既定値は、ソースに書かずリポジトリ変数から渡す
+          # （Settings → Secrets and variables → Actions → Variables）。未設定なら連携なしでビルドされる。
+          # API キーはここにも置かない（端末ごとにアプリの設定画面で入力する）
+          VITE_PROJECT_API_BASE: ${{ vars.PROJECT_API_BASE }}
+          VITE_DEFAULT_CONTRACTOR: ${{ vars.DEFAULT_CONTRACTOR }}
       - uses: actions/upload-pages-artifact@v3
         with:
           path: dist
