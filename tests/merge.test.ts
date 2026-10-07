@@ -159,7 +159,7 @@ describe('別々に作った同じ業務番号の案件を結合する（K 番�
     const { result } = await merge(A, a.id, file, 'projectNumber');
     expect(result.summary.taken).toEqual(['K-2', 'K-3']);
     expect(await depthsByPoint(A, a.id)).toEqual({ 'K-1': [10], 'K-2': [10], 'K-3': [10] });
-    expect((await A.getProject(a.id)).projectName).toBe('○○地区'); // 案件名は端末のまま
+    expect((await A.getProject(a.id)).projectName).toBe('○○地区'); // 調査件名は端末のまま
   });
 
   it('結合後の CSV 用データは端末の案件・地点 ID にそろう', async () => {

@@ -3,7 +3,9 @@ import { findNonShiftJis } from '../../export/sjis';
 import { h } from '../dom';
 
 /** 業務DBから取得した内容と、確認してほしい点を表示する */
-export function renderProjectDbResult(target: HTMLElement, rec: ProjectDbRecord | null, contractorName: string): void {
+export function renderProjectDbResult(target: HTMLElement, rec: ProjectDbRecord | null, contractorName: string,
+  opts: { showSurveyTitle?: boolean } = {}): void {
+  const { showSurveyTitle = true } = opts;
   target.replaceChildren();
   if (!rec) return;
   const warnings: string[] = [];
@@ -18,7 +20,7 @@ export function renderProjectDbResult(target: HTMLElement, rec: ProjectDbRecord 
   target.append(
     h('div', { class: 'db-heading' }, `業務DBから取得しました（業務番号 ${rec.projectNumber}）`),
     h('dl', {},
-      h('dt', {}, '調査件名'), h('dd', {}, rec.surveyTitle || '（登録なし）'),
+      ...(showSurveyTitle ? [h('dt', {}, '調査件名'), h('dd', {}, rec.surveyTitle || '（登録なし）')] : []),
       h('dt', {}, '発注機関名称'), h('dd', {}, rec.clientName || '（登録なし）'),
       ...(contractorName ? [h('dt', {}, '調査業者名'), h('dd', {}, contractorName)] : []),
     ),

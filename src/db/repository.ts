@@ -80,7 +80,7 @@ export class Repository {
     const number = projectNumber.trim();
     const name = projectName.trim();
     if (!number) throw new DomainError('業務番号を入力してください');
-    if (!name) throw new DomainError('案件名を入力してください');
+    if (!name) throw new DomainError('調査件名を入力してください');
     assertPointCount(pointCount);
     const now = nowIso();
     const project: Project = { id: newId(), projectNumber: number, projectName: name, createdAt: now, updatedAt: now };

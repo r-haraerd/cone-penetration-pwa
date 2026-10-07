@@ -29,9 +29,9 @@ describe('案件作成と試験数量', () => {
     expect(points.every((p) => p.status === 'active' && p.measurementCount === 0)).toBe(true);
   });
 
-  it('業務番号・案件名・試験数量（1〜25）は必須', async () => {
+  it('業務番号・調査件名・試験数量（1〜25）は必須', async () => {
     await expect(repo.createProject(' ', 'x', 3)).rejects.toThrow('業務番号');
-    await expect(repo.createProject('0540', '', 3)).rejects.toThrow('案件名');
+    await expect(repo.createProject('0540', '', 3)).rejects.toThrow('調査件名');
     await expect(repo.createProject('0540', 'x', 0)).rejects.toThrow('試験数量');
     await expect(repo.createProject('0540', 'x', 26)).rejects.toThrow('試験数量');
     await expect(repo.createProject('0540', 'x', 2.5)).rejects.toThrow('試験数量');

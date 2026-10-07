@@ -285,3 +285,6 @@ button, input { font: inherit; }
 .db-result dd { margin: 0; font-weight: 700; word-break: break-all; }
 .db-result .warn { color: #8a5a00; font-weight: 700; margin: 8px 0 0; }
 .db-result .db-heading { font-weight: 700; color: var(--primary); }
+textarea.title-input { resize: vertical; line-height: 1.4; min-height: 3.2em; font-family: inherit; }
+/* 調査件名は長いので、見出しは 2 行までにする */
+.app-title { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2; overflow: hidden; }

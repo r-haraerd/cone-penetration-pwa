@@ -14,7 +14,7 @@ import { pointNameOf, type Measurement, type Point, type Project, type ProjectSn
  * - 両方同じ内容                           → 変更なし
  * - 片方がもう片方の記録に書き足しただけ   → 多い方
  * - 両方が別々に記録・修正している         → 競合（利用者がどちらを残すか選ぶ）
- * 地点番号と案件名は、結合する側（この端末）のものを使う。
+ * 地点番号と調査件名は、結合する側（この端末）のものを使う。
  */
 
 export type MatchBy = 'id' | 'projectNumber';

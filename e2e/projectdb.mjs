@@ -65,21 +65,38 @@ await page.screenshot({ path: 'shots/70_db_settings.png', fullPage: true });
 
 // 3. 業務番号を入れると取得 → 案件作成で電子納品データに入る
 await newProject('０１２３４'); // 全角でも可
-check('取得結果の表示', (await page.textContent('#db-result')).includes('令和○年度 サンプル地区地質調査業務委託'), true);
+check('調査件名の欄に自動で入る', await page.inputValue('#project-name'), '令和○年度 サンプル地区地質調査業務委託');
+check('発注機関の表示', (await page.textContent('#db-result')).includes('サンプル土木事務所'), true);
 await page.screenshot({ path: 'shots/71_db_new_project.png', fullPage: true });
-await page.fill('#project-name', 'サンプル地区'); await page.fill('#point-count', '2');
+await page.fill('#point-count', '2');
 await page.click('text=案件を作成');
+await page.waitForSelector('.point-tile');
+check('見出しは調査件名', (await page.textContent('.app-title')).trim(), '01234 令和○年度 サンプル地区地質調査業務委託');
 await openData();
 check('自動入力（作成時）', await fields(), ['令和○年度 サンプル地区地質調査業務委託', 'サンプル土木事務所', 'サンプル地質株式会社', '']);
+
+// 3b. 入力が止まれば欄を離れなくても取得する。業務番号を変えると自動で入れた件名は入れ替わる
+await page.goto(base);
+await page.click('.app-footer >> text=＋ 新しい案件');
+await page.fill('#project-number', '01234');
+await page.waitForFunction(() => document.querySelector('#project-name').value !== '');
+await page.fill('#project-number', '05555');
+await page.waitForFunction(() => document.querySelector('#project-name').value.includes('擁壁'));
+check('業務番号の変更で入れ替わる', await page.inputValue('#project-name'), 'サンプル地区擁壁工事に伴う地質調査業務');
+// 手で書き換えた件名は上書きしない
+await page.fill('#project-name', '手で書いた件名');
+await page.fill('#project-number', '01234');
+await page.waitForFunction(() => document.querySelector('#db-result').textContent.includes('01234'));
+check('手入力の件名は残す', await page.inputValue('#project-name'), '手で書いた件名');
 check('API キーをヘッダーで送る', seenKeys.includes('good-key'), true);
 
 // 4. 登録のない業務番号 → 案内のみ。調査業者名は既定値
 await newProject('99999');
 check('未登録の案内', (await page.textContent('#db-status')).includes('登録されていません'), true);
-await page.fill('#project-name', '未登録'); await page.fill('#point-count', '1');
+await page.fill('#project-name', '手入力の調査件名'); await page.fill('#point-count', '1');
 await page.click('text=案件を作成');
 await openData();
-check('既定の調査業者名のみ', await fields(), ['', '', 'サンプル地質株式会社', '']);
+check('手入力の調査件名と既定の調査業者名', await fields(), ['手入力の調査件名', '', 'サンプル地質株式会社', '']);
 
 // 5. 下請案件：データ出力画面のボタンで取得 → 元請名の注意
 await page.goto(base);
