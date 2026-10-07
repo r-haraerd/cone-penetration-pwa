@@ -3,21 +3,13 @@ import { nowIso } from '../../domain/ids';
 import { buildBackup, serializeBackup } from '../../export/backup';
 import { buildExcelCsv, checkCsvReadiness } from '../../export/csv';
 import { navigate, type Params } from '../../router';
-import { formatDateTime, h } from '../dom';
-import { confirmDialog } from '../components/confirmDialog';
+import { h } from '../dom';
+import { backupStatus, confirmAndDeleteProject } from '../components/deleteProject';
 import { errorText, screen, showError } from '../components/layout';
 import { fileTimestamp, safeFileName, saveTextFile } from '../fileSave';
 import { deliverySection } from './deliverySection';
 
-/** 最後の変更がバックアップ後か */
-export function backupStatus(project: { updatedAt: string; lastBackupAt?: string | null }): { text: string; stale: boolean } {
-  if (!project.lastBackupAt) return { text: 'バックアップ：まだ保存していません', stale: true };
-  const stale = project.updatedAt > project.lastBackupAt;
-  return {
-    text: `バックアップ：${formatDateTime(project.lastBackupAt)}${stale ? '（その後に変更あり）' : '（最新）'}`,
-    stale,
-  };
-}
+export { backupStatus };
 
 /** 案件のデータ出力（Excel 取込用 CSV・JSON バックアップ）と案件の削除 */
 export async function projectDataScreen({ projectId }: Params): Promise<HTMLElement> {
@@ -65,20 +57,8 @@ export async function projectDataScreen({ projectId }: Params): Promise<HTMLElem
   };
 
   const removeProject = async () => {
-    const latest = await repository.getProject(projectId);
-    const s = backupStatus(latest);
-    const count = snapshot.points.reduce((sum, p) => sum + p.measurements.length, 0);
-    const ok = await confirmDialog({
-      message: `案件「${project.projectNumber} ${project.projectName}」を削除しますか？`,
-      detail: `${snapshot.points.length} 地点・${count} 測定がこの端末から削除され、元に戻せません。` +
-        (s.stale ? '\n最新のバックアップがありません。先に JSON バックアップを保存することをおすすめします。' : ''),
-      confirmLabel: '案件を削除',
-      danger: true,
-    });
-    if (!ok) return;
     try {
-      await repository.deleteProject(projectId);
-      navigate('/');
+      if (await confirmAndDeleteProject(projectId)) navigate('/');
     } catch (e) {
       showError(deleteError, e);
     }
